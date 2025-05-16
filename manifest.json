@@ -1,0 +1,47 @@
+{
+
+  "description": "Bridges web-based CAT tools with online search tools, so translators can get a diverse set of references without TM integration.",
+  "manifest_version": 3,
+  "name": "Web CAT Search Extender (by Juremy.com)",
+  "version": "1.0",
+  "homepage_url": "https://juremy.com",
+  "permissions": [
+    "contextMenus",
+    "storage"
+  ],
+  "icons": {
+    "48": "icons/wcse-48.png"
+  },
+
+  "_key": "key@juremy.com",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "info@juremy.com"
+    }
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "http://rigo:9001/*",
+        "http://rigo/*",
+        "https://cloud.memsource.com/web/job/*/translate",
+        "https://editor.memsource.com/twe/translation/job/*",
+        "https://www.matecat.com/translate/*",
+        "https://*.memoq.com/*/editor/projects/*/docs/*",
+
+        "https://juremy.com/*",
+        "https://iate.europa.eu/search/*",
+        "https://iate.europa.eu/home",
+        "https://eur-lex.europa.eu/*"
+      ],
+      "all_frames": true,
+      "js": ["webcatsearchext.js"]
+    }
+  ],
+
+  "background": {
+    "scripts": ["background.js"],
+    "service_worker": "background.js"
+  }
+}
