@@ -1,0 +1,40 @@
+<html>
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <style>
+      body {
+        padding: 1em;
+        width: 450px;
+        h1 { font-size: 12pt; }
+        h2 { font-size: 10pt; }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="popup.js"></script>
+    <h1>Web CAT Search Extender options</h1>
+<form>
+    <!-- keep these alphabetical -->
+    <div>
+      <h2>Online CAT tools and other editors (frontends)</h2>
+      <input type="checkbox" id="fe_matecat" name="fe_matecat"/><label for="fe_matecat">MateCat</label>
+      <input type="checkbox" id="fe_memoq" name="fe_memoq"/><label for="fe_memoq">memoQWeb</label>
+      <input type="checkbox" id="fe_memsource" name="fe_memsource"/><label for="fe_memsource">Memsource / Phrase</label>
+    </div>
+    <div>
+      <h2>Search provider pages (backends)</h2>
+      <input type="checkbox" id="be_eurlex" name="be_eurlex"/><label for="be_eurlex">EUR-Lex</label>
+      <input type="checkbox" id="be_iate" name="be_iate"/><label for="be_iate">IATE</label>
+      <input type="checkbox" id="be_juremy" name="be_juremy"/><label for="be_juremy">Juremy</label>
+    </div>
+    <div style="margin-top: 0.5rem;">
+      <button id="save">Save &amp; close</button>
+    </div>
+</form>
+    <div style="margin-top: 2rem; float: right; padding: 1rem;">
+      <a target="__blank" href="https://www.juremy.com/blog/web-cat-extender-browser-extension/">Blog article</a><br/>
+      <a target="__blank" href="https://github.com/JuremyDotCom/web-cat-search-extender">Source code</a>
+    </div>
+  </body>
+</html>

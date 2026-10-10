@@ -1,17 +1,24 @@
-/* Development ideas
+/*
+
+== Non-goals:
+
+Insert-to-target: Modifying a rich editor state naively might interact badly
+with the SPA's internal logic. So we always treat any SPA frontend as
+read-only.
+
+== Possible development ideas
 
 Common attributes:
   - project id / file id / client id - any that exists. For client-side mapping of options, or at least establishing of some source id. Example: hash them and send along with search, so backend can maintain search options even when context-switching.
   - some kind of row id (row number? or other opaque enumerable value)
   - current visible row range (for eventual contextful operations)
-  - insert-to-target? Modifying data might be flaky.
 
 QA mode (send both-side text in events).
 
-**/
+*/
 
-(function() {
-  const debug = false;
+(async function() {
+  const debug = true;
 
   const util = {
     // Note: el can be a synthetic element like that of
@@ -21,7 +28,7 @@ QA mode (send both-side text in events).
         return el.textContent;
       }
 
-      // TODO(content): this is somewhat memoQweb-specific. Make passable?
+      // TODO(content): this is somewhat memoq-specific. Make passable?
       if (el.nodeName == "FIGURE") {
         if (el.getAttribute("tag-name") == "br") {
           return " ";
@@ -46,10 +53,9 @@ QA mode (send both-side text in events).
 
       return text;
     },
-    selectionRange() {
+    selectionRange(includeCaret) {
       let sel = document.getSelection();
-      // "Caret" doesn't interest us.
-      if (sel.type == "Range" && sel.rangeCount == 1) {
+      if ((sel.type == "Range" || includeCaret && sel.type == "Caret") && sel.rangeCount == 1) {
         return sel.getRangeAt(0);
       }
     }
@@ -151,13 +157,13 @@ QA mode (send both-side text in events).
   };
 
   function installMemoQ() {
-    let port = extUtil.initAsFrontend("memoQweb");
+    let port = extUtil.initAsFrontend("memoq");
 
-    // Note: we don't register and react to 'selectionchange', since it causes
-    // odd interactions when acting on the selections syncronously. Rather
-    // perform selection checks post-click.
+    // NOTE(selectionchange): we don't register and react to 'selectionchange',
+    // since it causes odd interactions when acting on the selections
+    // syncronously. Rather perform selection checks post-click.
     //
-    // document.addEventListener('selectionchange', ...)
+    //    document.addEventListener('selectionchange', ...)
     //
     // (Well, we could try this again, maybe it was some implementation bug.
     // But it works well this way too, so why the extra listener).
@@ -208,6 +214,119 @@ QA mode (send both-side text in events).
     });
   }
 
+  // So far very similar in operation to memoQ's utils, but see
+  // NOTE(memsource-range), which segmentInfo here implements.
+  const memsource = {
+    findSegment(el) {
+      while (el != null && !(el.classList.contains("twe_target")
+          || el.classList.contains("twe_source")
+          || el.classList.contains("twe_segment"))) {
+        el = el.parentElement;
+      }
+      if (el.classList.contains("twe_segment")) {
+        // Click was in some auxillary column within the row, treat as if
+        // target was clicked.
+        return el.querySelector("div.twe_target");
+      }
+      return el;
+    },
+    segmentInfo(el) {
+      let isSource = el.classList.contains("twe_source");
+      let langCode = el.attributes.lang.value;
+      var c = el.querySelector('.te_textarea_container');
+      let text = c == null ? "" : util.visibleTextContent(c);
+      var selc = c.querySelector('.te_highlight_selection');
+      let selectedText = selc == null ? "" : util.visibleTextContent(selc);
+      return {isSource, langCode, text, selectedText};
+    },
+    toCommonSegmentInfo(seg) {
+      return {
+        text: seg.text,
+        langCode: seg.langCode,
+        location: seg.isSource ? 'source' : 'target',
+      };
+    },
+    findSiblingSegment(el) {
+      const isTarget = el.classList.contains("twe_target");
+      while (el != null && !el.classList.contains("twe_segment")) {
+        el = el.parentElement;
+      }
+      if (el == null) return;
+      let otherSegmentClass  = isTarget ? "twe_source" : "twe_target";
+
+      return el.querySelector('div.' + otherSegmentClass);
+    },
+    // One-stop-shop to get full row info from a segment and its sibling.
+    findSegmentAllInOne(el) {
+      let seg = memsource.findSegment(el);
+      if (seg == null) return null;
+      let sib = memsource.findSiblingSegment(seg);
+      if (sib == null) return null;
+      let segInf = memsource.segmentInfo(seg);
+      let sibInf = memsource.segmentInfo(sib);
+      // Derived
+      let rowSeg = {
+        el: seg,
+        info: segInf,
+      };
+      let rowSib = {
+        el: sib,
+        info: sibInf,
+      };
+      let rowSrc = segInf.isSource ? rowSeg : rowSib;
+      let rowTgt = segInf.isSource ? rowSib : rowSeg;
+      return {
+        seg: rowSeg,
+        sib: rowSib,
+        src: rowSrc,
+        tgt: rowTgt,
+      };
+    }
+  };
+
+  function installMemsource() {
+    let port = extUtil.initAsFrontend("memsource");
+
+    // See NOTE(selectionchange), did not try.
+
+    document.addEventListener('mouseup', (ev) => {
+      // NOTE(memsource-range): in memsource we would always get a Caret
+      // selection, since it implements range selection itself, not via
+      // standard Range. So we extract that from html instead via Range api.
+      let row = memsource.findSegmentAllInOne(ev.target);
+      if (row == null) return;
+
+      if (debug) {
+        console.log('vvvvvvvvv*******************');
+        console.log('row', row);
+        console.log('^^^^^^^^*******************');
+      }
+
+      if (row.seg.info.selectedText != "") {
+        port.postMessage({
+          frontendEvent: {
+            event: 'selectSegmentText',
+            selectedText: row.seg.info.selectedText,
+            segmentPair: {
+                active: memsource.toCommonSegmentInfo(row.seg.info),
+                other: memsource.toCommonSegmentInfo(row.sib.info),
+            },
+          }
+        });
+      } else {
+        port.postMessage({
+          frontendEvent: {
+            event: 'clickSegment',
+            segmentPair: {
+                active: memsource.toCommonSegmentInfo(row.seg.info),
+                other: memsource.toCommonSegmentInfo(row.sib.info),
+            },
+          }
+        });
+      }
+    });
+  }
+
   // TODO(cleanup): many overlap with other frontends.
   const matecat = {
     findSegment(el) {
@@ -244,7 +363,7 @@ QA mode (send both-side text in events).
     findSiblingSegment(el) {
       let isSource = /source$/.test(el.id);
       let otherId = isSource ? el.id.replace(/source$/, "target") : el.id.replace(/target$/, "source");
-      
+
       console.log("looking for sibling", el.id, '['+otherId+']');
       let res = el.parentElement.querySelector('#' + otherId);
       console.log("got", res);
@@ -281,12 +400,8 @@ QA mode (send both-side text in events).
   function installMatecat() {
     let port = extUtil.initAsFrontend("matecat");
 
-    // Note: we don't register and react to 'selectionchange', since it causes
-    // odd interactions when acting on the selections syncronously. Rather
-    // perform selection checks post-click.
-    //
-    // document.addEventListener('selectionchange', ...)
-    //
+    // See NOTE(selectionchange).
+
     document.addEventListener('mouseup', (ev) => {
       let rg = util.selectionRange();
       if (rg) {
@@ -461,29 +576,50 @@ QA mode (send both-side text in events).
 
   }
 
-  function installInitial() {
+  async function installInitial() {
+    const bl = browser.storage.local;
+    const model = (await bl.get("model"))?.model;
+    console.log('model read', model);
+    let frontendEnabled = function(fe) {
+      const fes = model?.frontends;
+      if (fes == null) return true;
+      return fes[fe]?.enabled == true;
+    };
+    let backendEnabled = function(be) {
+      const bes = model?.backends;
+      if (bes == null) return true;
+      return bes[be]?.enabled == true;
+    };
+
     document.body.style.borderTop = "1px solid yellow";
     console.log('init', window.location.href);
     // Frontends
-    if (/.*\.memoq\.com\/[^\/]*\/editor\/projects\/[^\/]*\/docs\/.*/.test(window.location.href)) {
-      installMemoQ();
-    } else if (/.*www\.matecat\.com\/translate\/.*/.test(window.location.href)) {
-      installMatecat();
+    if (frontendEnabled('memoq') && /.*\.memoq\.com\/[^\/]*\/editor\/projects\/[^\/]*\/docs\/.*/.test(window.location.href)) {
+      installMemoQ(model);
+    } else if (frontendEnabled('matecat') && /.*www\.matecat\.com\/translate\/.*/.test(window.location.href)) {
+      installMatecat(model);
+    } else if (frontendEnabled('memsource') && /* iframe */ /.*\.memsource\.com\/twe\/translation\/job\/.*/.test(window.location.href)) {
+      // NOTE(memsource-url): the user-visible url is
+      // could.memsource.com/web/job/*/translate, but the actual editor is
+      // embedded via an iframe with above url.
+      installMemsource(model);
     }
+
     // Backends
-    else if (/rigo/.test(window.location.href) || /juremy\.com/.test(window.location.href)) {
-      installJuremy();
-    } else if (/.*iate.europa.eu\/.*/.test(window.location.href)) {
-      installIate();
-    } else if (/.*eur-lex.europa.eu\/.*/.test(window.location.href)) {
-      installEurlex();
+    if (backendEnabled('juremy') && (/juremy\.com/.test(window.location.href)
+        || /.*\.myjuremy\.com/.test(window.location.href))) {
+      installJuremy(model);
+    } else if (backendEnabled('iate') && /.*iate.europa.eu\/.*/.test(window.location.href)) {
+      installIate(model);
+    } else if (backendEnabled('eurlex') && /.*eur-lex.europa.eu\/.*/.test(window.location.href)) {
+      installEurlex(model);
     }
   }
 
   document.body.style.borderTop = "1px solid purple";
   if (document.readyState == 'complete') {
     console.log('installing Juremy browser extension');
-    installInitial();
+    await installInitial();
   } else {
     window.addEventListener('load', (ev) => {
       console.log('after page load: installing Juremy browser extension');

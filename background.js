@@ -32,6 +32,16 @@ backends = {};
 //    background script, so context menu clicks have no effect after a while.
 //
 
+// Visual feedback about generic extension state.
+function updateBadge() {
+  const backendCount = Object.keys(backends).length;
+  const text = backendCount == 0 ? "" : backendCount + "";
+  browser.action.setBadgeText({
+    // The number of active backends.
+    text: text,
+  });
+}
+
 // FF keepalive
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1771203#c1
 chrome.storage.onChanged.addListener((storage) => {});
@@ -182,6 +192,7 @@ chrome.runtime.onConnect.addListener(function(port) {
             tabId: senderTabId,
           };
         }
+        updateBadge();
       }
     });
   }
