@@ -3,7 +3,7 @@
   "description": "Bridges web-based CAT tools with online search tools, so translators can get a diverse set of references without TM integration.",
   "manifest_version": 3,
   "name": "Web CAT Search Extender (by Juremy.com)",
-  "version": "1.1",
+  "version": "1.1.1",
   "homepage_url": "https://juremy.com",
   "permissions": [
     "contextMenus",

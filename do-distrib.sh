@@ -6,7 +6,7 @@ then
 fi
 
 rm dist/*.zip
-zip -r -FS dist/webcatsearchext_ff.zip *.js *.md LICENSE icons manifest.json
+zip -r -FS dist/webcatsearchext_ff.zip *.js *.md *.html LICENSE icons manifest.json
 
 pushd dist/
 mkdir -p edge
